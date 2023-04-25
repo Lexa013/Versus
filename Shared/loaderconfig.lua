@@ -49,6 +49,7 @@ VS.Modules = {
         pathName = "commands";
         files = {
             shared = {
+                "sh_commandsconfigs.lua"
             },
             server = {
                 "sv_commands.lua",

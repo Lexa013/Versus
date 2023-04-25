@@ -1,27 +1,17 @@
 VS.SQL.Repositories.IAM = VS.SQL.Repositories.IAM or {}
 local db_connection = VS.SQL.Connection
 
----@async
 ---@return "GetUsergroups", table<table> usergroups
-function VS.SQL.Repositories.IAM.GetUsergroups()
-    db_connection:Select("SELECT * FROM vs_usergroups", function(data)
-        Events.Call("SQL::QueryResult", "IAM.GetUsergroups", data)
-    end)
+function VS.SQL.Repositories.IAM.GetUsergroups(callback)
+    db_connection:SelectAsync("SELECT * FROM vs_usergroups", callback)
 end
 
-
----@async
 ---@param name string
 ---@param power number
-function VS.SQL.Repositories.IAM.AddUsergroup(name, power)
-    db_connection:Execute("INSERT INTO vs_usergroups (name, power) VALUES (:0, :1)", function(data, error)
-        -- Tell that the usergroup has been created
-        local result
+function VS.SQL.Repositories.IAM.AddUsergroup(name, power, callback)
+    db_connection:ExecuteAsync("INSERT INTO vs_usergroups (name, power) VALUES (:0, :1)", callback, name, power)
+end
 
-        if(not error) then
-            result = name
-        end
-
-        Events.Call("SQL::QueryResult", "IAM.AddUserGroup", result )
-    end, name, power)
+function VS.SQL.Repositories.IAM.DeleteUsergroup(name, callback)
+    db_connection:ExecuteAsync("DELETE FROM vs_usergroups WHERE name = :0", callback, name)
 end

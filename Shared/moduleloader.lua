@@ -14,15 +14,14 @@ local function loadModules()
 
         local isServer = _ENV["Server"] ~= nil and true or false;
         local moduleFiles = mConfig.files
-        local packagePath = Package.GetPath()
-
+        local packageName = Package.GetName()
 
         -- Shared include
         for _, sharedFile in ipairs(moduleFiles.shared) do
             if (shouldStop) then return end
 
             Console.Log("\tLoading SH file: " ..sharedFile)
-            returnCode = Package.Require(packagePath.. "/Shared/modules/" ..mConfig.pathName.. "/" ..sharedFile)
+            returnCode = Package.Require(packageName.. "/Shared/modules/" ..mConfig.pathName.. "/" ..sharedFile)
 
             checkStopCode(returnCode)
 
@@ -34,7 +33,7 @@ local function loadModules()
                 if (shouldStop) then return end
 
                 Console.Log("\tLoading SV file: " ..serverFile)
-                returnCode = Package.Require(packagePath.. "/Server/modules/" ..mConfig.pathName.. "/" ..serverFile)
+                returnCode = Package.Require(packageName.. "/Server/modules/" ..mConfig.pathName.. "/" ..serverFile)
 
                 checkStopCode(returnCode)
             end
@@ -46,7 +45,7 @@ local function loadModules()
                 if (shouldStop) then return end
 
                 Console.Log("\tLoading CL file: " ..clientFile)
-                returnCode = Package.Require(packagePath.. "/Client/modules/" ..mConfig.pathName.. "/" ..clientFile)
+                returnCode = Package.Require(packageName.. "/Client/modules/" ..mConfig.pathName.. "/" ..clientFile)
 
                 checkStopCode(returnCode)
             end

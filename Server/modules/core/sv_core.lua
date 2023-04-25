@@ -1,86 +1,119 @@
 VS.Players = VS.Players or {}
 
 local user_repository = VS.SQL.Repositories.User
+local iam_repository = VS.SQL.Repositories.IAM
 
--- Player data received
-Events.Subscribe("SQL::QueryResult", function(dataName, data, steamid, _, __)
-    if (dataName ~= "PlayerData") then return end
-    local current_player = VS.Players[steamid]
-    
-    current_player:SetValue("PlayerData", {}, true)
+local function playerDataReceived(rows, error)
+    if error or (#rows < 1 or #rows > 1) then
+        Console.Log("Something went wrong when retrieving someone's data !")
+        return
+    end
 
-    -- Contains: IP: Last time seen, First connection, 
-    current_player:SetValue("SensitivePlayerdata", data, false)
+    local playerData = rows[1]
+    local player = VS.Players[playerData.steamid]
 
-    print(NanosUtils.Dump(data))
+    -- If the data arrived after the player disconnected
+    if (player == nil) then return end
 
-    user_repository.UpdateColumn("username", steamid, current_player:GetAccountName())
-    user_repository.UpdateColumn("ip", steamid, current_player:GetIP())
-end)
+    user_repository.UpdateColumnAsync("username", steamId, current_player:GetAccountName(), nil)
+    user_repository.UpdateColumnAsync("ip", steamId, current_player:GetIP(), nil)
+    user_repository.UpdateColumnAsync("last_seen", steamId, os.date("%Y-%m-%d %X", os.time()), nil)
+end
 
--- User creation suceed
-Events.Subscribe("SQL::QueryResult", function(dataName, steamid, _, __, ___)
-    if (dataName ~= "UserCreated") then return end
-    user_repository.FetchData(steamid, true)
-end)
-
--- Player joins check if 
-Player.Subscribe("Ready", function(player)
+local function playerJoined(player)
     local steamid = player:GetSteamID()
-    local id = player:GetID() 
+    local ip = player:GetIP()
 
     VS.Players[steamid] = player
 
-    local exists = user_repository.IsExistingSync(steamid)
+    user_repository.IsExistingAsync(steamid, function(exists, error)
+        if (not exists) then
+            user_repository.CreateUserAsync(steamid, ip, function(rows_affected, error)
+                user_repository.FetchDataAsync(steamid, playerDataReceived)
+            end)
+        else
+            user_repository.FetchDataAsync(steamid, playerDataReceived)
+        end
+    end)
 
-    if (not exists) then
-       user_repository.CreateUser(steamid, player:GetIP())
-       return
-    end
+end
 
-    user_repository.FetchData(steamid, true)
-end)
+-- Player joins check if 
+Player.Subscribe("Ready", playerJoined)
+
 
 Player.Subscribe("Destroy", function(player)
     VS.Players[player:GetSteamID()] = nil
 end)
 
-VS.Commands.Register("test", function(caller, integer, players, reason)
-    Server.BroadcastChatMessage(caller:GetName() .."choosed ".. integer .."and there is ".. #players .." on the server because ".. reason)
-end)
 
-VS.Commands.Register("listgroups", function(caller)
-    VS.SQL.Repositories.IAM.GetUsergroups()
-    local result
 
-    result = Events.Subscribe("SQL::QueryResult", function(name, data)
-        if (name ~= "IAM.GetUsergroups") then return end
-        
-        Server.SendChatMessage(caller, "List of existing usergroups")
 
-        local text = ""
-        for k, v in ipairs(data) do
-            text = text .."\t- ".. v["name"] .."\n"
-        end
+-- VS.Commands.RegisterCommand("listgroups", function(caller)
 
-        Server.SendChatMessage(caller, text)
-        Events.Unsubscribe("SQL::QueryResult", result)
-    end)
-end)
 
-VS.Commands.Register("addusergroup", function(caller, name, power)
-    VS.SQL.Repositories.IAM.AddUsergroup(name, power)
-    local result
+--     iam_repository.GetUsergroups(function(rows, error)
+--         if (error) then
+--             Server.SendChatMessage(caller, "Something went wrong when retrieving the usergroups !")
+--             Console.Warn("Failed to retrieve the usergroups list:" ..error)
+--             return
+--         end
+    
+--         Server.SendChatMessage(caller, "List of existing usergroups")
+    
+--         local text = ""
+--         for k, v in ipairs(rows) do
+--             text = text .."\t- ".. v["name"] .."\n"
+--         end
+    
+--         Chat.SendMessage(caller, text)
+--     end)
+-- end)
 
-    result = Events.Subscribe("SQL::QueryResult", function(name, usergroup_name)
-        if (name ~= "IAM.AddUserGroup") then return end
-        
-        if (usergroup_name) then
-            Server.SendChatMessage(caller, "Success, the ".. usergroup_name .." group has been created !")
-        else
-            Server.SendChatMessage(caller, "Something when wrong, the specified usergroup may already exist !")
-        end
+-- Console.Log(NanosTable.Dump(VS.Commands.Registered))
 
-        Events.Unsubscribe("SQL::QueryResult", result)
-    end)
-end)
+-- VS.Commands.Register("listgroups", function(caller)
+
+--     local usergroups, error = iam_repository.GetUsergroups()
+
+--     if (error) then
+--         Server.SendChatMessage(caller, "Something went wrong when retrieving the usergroups !")
+--         Console.Warn("Failed to retrieve the usergroups list:" ..error)
+--         return
+--     end
+
+--     Server.SendChatMessage(caller, "List of existing usergroups")
+
+--     local text = ""
+--     for k, v in ipairs(usergroups) do
+--         text = text .."\t- ".. v["name"] .."\n"
+--     end
+
+--     Chat.SendMessage(caller, text)
+-- end)
+
+-- VS.Commands.Register("addusergroup", function(caller, name, power)
+    
+--     local _, error = VS.SQL.Repositories.IAM.AddUsergroup(name, power)
+
+--     if (error) then
+--         Server.SendChatMessage(caller, "Something went wrong when creating a usergroup !")
+--         Console.Warn("Failed to create a usergroup:" ..error)
+--         return
+--     end
+
+--     Server.SendChatMessage(caller, "Successfully created the " ..name.. " usergroup with a power of " ..power)
+-- end)
+
+-- VS.Commands.Register("delete", function(caller, name)
+    
+--     local _, error = VS.SQL.Repositories.IAM.AddUsergroup(name, power)
+
+--     if (error) then
+--         Server.SendChatMessage(caller, "Something went wrong when creating a usergroup !")
+--         Console.Warn("Failed to create a usergroup:" ..error)
+--         return
+--     end
+
+--     Server.SendChatMessage(caller, "Successfully created the " ..name.. " usergroup with a power of " ..power)
+-- end)

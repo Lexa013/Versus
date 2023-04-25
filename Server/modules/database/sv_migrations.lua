@@ -10,20 +10,20 @@ local migrations_folder = "Server/modules/database/migrations/"
 
 local function SetMigrationVersion(version)
     if not version or type(version) ~= "number" then
-        Package.Error("[SQL] Cannot set migration to invalid version '" .. version or "nil" .. "'")
+        Console.Error("[SQL] Cannot set migration to invalid version '" .. version or "nil" .. "'")
         return
     end
 
     VS.SQL.Connection:Execute("UPDATE vs_migrations SET VERSION = :v LIMIT 1;", function(affected_rows)  
         if not affected_rows then 
-            Package.Error("[SQL] Failed to set migration version to %i", version)
+            Console.Error("[SQL] Failed to set migration version to %i", version)
         end
     end, version)
 end
 
 local function RunMigration(version)
     if not migrations[version] then 
-        Package.Error("[SQL] Could not run migration " .. version .. " as it does not exist!")
+        Console.Error("[SQL] Could not run migration " .. version .. " as it does not exist!")
     end
 
     local database = VS.SQL.Connection
@@ -31,10 +31,10 @@ local function RunMigration(version)
     local data = migration_file:Read()
 
     if not data then 
-        Package.Error("[SQL] Could not read migration at " .. migrations_folder .. migrations[version])
+        Console.Error("[SQL] Could not read migration at " .. migrations_folder .. migrations[version])
     end
 
-    Package.Log("[SQL] Running migration '%s'", migrations[version])
+    Console.Log("[SQL] Running migration '%s'", migrations[version])
 
     local queries = StringUtils.Explode(";", data)
 
@@ -46,11 +46,11 @@ local function RunMigration(version)
         local _, failed = database:ExecuteSync(v)
 
         if (failed) then
-            Package.Error("[SQL] Failed the query #".. k .." of ".. migrations[version])
+            Console.Error("[SQL] Failed the query #".. k .." of ".. migrations[version])
             return
         end
 
-        Package.Log("\tSuccesfully ran query #".. k .." of ".. migrations[version])
+        Console.Log("\tSuccesfully ran query #".. k .." of ".. migrations[version])
 
         ::skipQuery::
     end
@@ -58,23 +58,23 @@ local function RunMigration(version)
     if migrations[version + 1] then
         RunMigration(version + 1)
     else
-        Package.Log("[SQL] All migrations completed.")
+        Console.Log("[SQL] All migrations completed.")
         SetMigrationVersion(version)
         VS.SQL.OnMigrationSucceeded()
     end
 end
 
 function VS.SQL.Migrate()
-    if not VS.SQL.Initialize then
-        Package.Error("[SQL] Cannot migrate the sql database: SQL module is not Initialized")
+    if (VS.SQL.Initialized) then
+        Console.Warn("[SQL] Database is already initialized, can't run the migrations !")
         return
     end
 
-    Package.Log("[SQL] Initializing database migrations..")
+    Console.Log("[SQL] Initializing database migrations..")
     local db = VS.SQL.Connection
 
-    db:ExecuteSync("CREATE TABLE IF NOT EXISTS vs_migrations (version INT NOT NULL); ")
-    db:ExecuteSync([[
+    db:Execute("CREATE TABLE IF NOT EXISTS vs_migrations (version INT NOT NULL); ")
+    db:Execute([[
         INSERT INTO vs_migrations
         SELECT 0 FROM DUAL
         WHERE NOT EXISTS (SELECT * FROM vs_migrations);
@@ -87,18 +87,18 @@ end
 
 function VS.SQL.OnVersionRetrieved(data)
     if not data then
-        Package.Error("[SQL] Failed to start migrating the database, %s")
+        Console.Error("[SQL] Failed to start migrating the database, %s")
         return
     end
 
     local currentVersion = tonumber(data[1]["version"])
     
     if (not currentVersion) then
-        Package.Error("[SQL] Database version is invalid, aborting migration !")
+        Console.Error("[SQL] Database version is invalid, aborting migration !")
         return
     end
 
-    Package.Log("[SQL] Curent database version is: " ..currentVersion)
+    Console.Log("[SQL] Curent database version is: " ..currentVersion)
 
     local migration_files = Package.GetFiles(migrations_folder, ".sql")
 
@@ -110,7 +110,7 @@ function VS.SQL.OnVersionRetrieved(data)
 
         -- Has at least 12_AwesomeMigration
         if (#splited < 2) then
-            Package.Warn("[SQL] Invalid migration '%s': naming convention is 'version_migration-name.sql'. Skipping.", filename)
+            Console.Warn("[SQL] Invalid migration '%s': naming convention is 'version_migration-name.sql'. Skipping.", filename)
             goto continue
         end
 
@@ -118,18 +118,18 @@ function VS.SQL.OnVersionRetrieved(data)
         local migration_version = tonumber(splited[1])
 
         if (not migration_version or migration_version < 1) then
-            Package.Warn("[SQL] Invalid migration '%s': version must be a valid number, minimum 1. Skipping.", filename)
+            Console.Warn("[SQL] Invalid migration '%s': version must be a valid number, minimum 1. Skipping.", filename)
             goto continue
         end
 
         if migrations[migration_version] then
-            Package.Warn("[SQL] Migration '%s' conflicts with '%s'. Two migrations cannot have the same version.", filename, migrations[migration_version])
+            Console.Warn("[SQL] Migration '%s' conflicts with '%s'. Two migrations cannot have the same version.", filename, migrations[migration_version])
             goto continue
         end
 
         if migration_version ~= #migrations + 1 then
-            Package.Error("[SQL] Migration '%s' does not follow versioning order. Versions must be ordinal.", filename)
-            Package.Error("[SQL] Aborting migrations.")
+            Console.Error("[SQL] Migration '%s' does not follow versioning order. Versions must be ordinal.", filename)
+            Console.Error("[SQL] Aborting migrations.")
             return
         end
 
@@ -138,10 +138,10 @@ function VS.SQL.OnVersionRetrieved(data)
     end
 
     if #migrations == 0 or #migrations <= currentVersion then
-        Package.Log("[SQL] No migrations to run, already up to date.")
+        Console.Log("[SQL] No migrations to run, already up to date.")
         return
     end
 
-    Package.Warn("[SQL] Database is %i version(s) behind! Running migrations.", #migrations - currentVersion)
+    Console.Warn("[SQL] Database is %i version(s) behind! Running migrations.", #migrations - currentVersion)
     RunMigration(currentVersion + 1)
 end

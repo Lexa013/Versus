@@ -1,35 +1,28 @@
 VS.Commands = VS.Commands or {}
-VS.Commands.Converters = VS.Commands.Converters or {}
 VS.Commands.Registered = VS.Commands.Registered or {}
+VS.Commands.Converters = VS.Commands.Converters or {}
 
-local commands = VS.Commands
-local registeredCmds = VS.Commands.Registered
+local commands = VS.Commands.Registered
 
-function VS.Commands.Register(command_name, action)
-    registeredCmds[command_name] = action
+function VS.Commands.RegisterCommand(command_name, func)
+    local config = VS.Commands.Configurations[command_name]
+
+    if (config == nil) then
+        Console.Warn("[Commands] No suitable configuration found for the command '" ..command_name.. "' please refer to the docs !")
+        return
+    end
+    
+    commands[command_name] = {
+        config = config,
+        func = func
+    }
+
+    Console.Log(NanosTable.Dump(VS.Commands.Configurations))
+
 end
 
 function VS.Commands.RegisterConverter(type_name, callback)
     VS.Commands.Converters[type_name] = callback
-end
-
-local function printSyntax(player, command_name)
-    if (not VS.Commands[command_name]) then return end
-
-    local text = "Syntax of " ..command_name.. ":"
-
-    for k, v in ipairs(VS.Commands[command_name].args) do
-        text = text .." <".. v.name ..":".. v.type ..">"
-    end
-
-    Server.SendChatMessage(player, text)
-end
-
----@param command_name string
----@param executor Player
----@vararg any
-function VS.Commands.ExecuteCommand(command_name, executor, ...)
-    VS.Commands.Registered[command_name](executor, ...)
 end
 
 Chat.Subscribe("PlayerSubmit", function(text, player)
@@ -39,23 +32,24 @@ Chat.Subscribe("PlayerSubmit", function(text, player)
     -- Check if text starts with an "/"
     if (string.sub(given_args[1], 1, 1) ~= "/") then return end
     -- Check if command registered
-    if (VS.Commands.Registered[command_name] == nil) then return end
+    if (commands[command_name] == nil) then return end
+
+    local command = commands[command_name]
 
     -- Check if config exists for this config
-    if (VS.Commands[command_name] == nil) then
+    if (command.config == nil) then
         Package.Warn("[Commands] No suitable configuration found for the command %s, aborting the execution !", command_name)
         return
     end
 
-    local command_config = VS.Commands[command_name]
+    local command_config = command.config
     local converted_args = {}
 
-    if (not command_config.args) then goto skipArgs end
-    if (#command_config.args < 1 ) then goto skipArgs end
+    if (not command_config.args or #command_config.args < 1  ) then goto skipArgs end
 
     -- If initially the player gives less arguments than the minimum
     if (#given_args-1 < #command_config.args) then
-        printSyntax(player, command_name)
+        Chat.SendMessage(player, command:getSyntax())
         return
     end
 
@@ -84,7 +78,7 @@ Chat.Subscribe("PlayerSubmit", function(text, player)
 
         -- If the conversion failed show the syntax message and abort
         if (not converted) then
-            printSyntax(player, command_name)
+            Chat.SendMessage(player, command:getSyntax())
             return
         end
 
@@ -96,11 +90,6 @@ Chat.Subscribe("PlayerSubmit", function(text, player)
             for i = 1, #given_args - k do
                 text = text .." ".. given_arg
             end
-            
-            if (type(converted_args[k]) ~= "string") then
-                Package.Error("[Commands] Something went wrong with the remaining text, please contact Lexa#3625 on Discord")
-                return
-            end
 
             converted_args[k] = text
         end
@@ -110,28 +99,28 @@ Chat.Subscribe("PlayerSubmit", function(text, player)
 
     -- Less arguments than needed after all conversions
     if (#converted_args < #command_config.args) then
-        printSyntax(player, command_name)
+        Chat.SendMessage(player, command:getSyntax())
         return
     end
 
     ::skipArgs::
 
-    -- Handle cooldown and execution
-    if (command_config.cooldown) then
+    -- -- Handle cooldown and execution
+    -- if (command_config.cooldown) then
 
-        if (not command_config.cooldown_bucket) then
-            Package.Warn("Command '%s' has a cooldown but doesn't have a cooldown bucket, Aborting !", command_name)
-            return
-        end
+    --     if (not command_config.cooldown_bucket) then
+    --         Package.Warn("Command '%s' has a cooldown but doesn't have a cooldown bucket, Aborting !", command_name)
+    --         return
+    --     end
 
-        if (not command_config.persistent_cooldown) then
-            VS.Commands.Cooldown.HandleCooldown(command_name, command_config, converted_args, player)
-        elseif (not command_config.persistent_cooldown) then
-            VS.Commands.Cooldown.HandlePersistentCooldown(command_name, command_config, converted_args, player)
-        end
+    --     if (not command_config.persistent_cooldown) then
+    --         VS.Commands.Cooldown.HandleCooldown(command_name, command_config, converted_args, player)
+    --     elseif (not command_config.persistent_cooldown) then
+    --         VS.Commands.Cooldown.HandlePersistentCooldown(command_name, command_config, converted_args, player)
+    --     end
         
-        return
-    end
+    --     return
+    -- end
 
-    VS.Commands.ExecuteCommand(command_name, player, table.unpack(converted_args))
+    command.func(player, table.unpack(converted_args))
 end)
