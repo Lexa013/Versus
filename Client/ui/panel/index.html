@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ULX Frame</title>
+  <style>
+    /* Add your custom styling here */
+    .ulx-frame {
+      width: 600px;
+      height: 400px;
+      background-color: lightgray;
+      border: 1px solid black;
+      border-radius: 5px;
+      padding: 20px;
+      text-align: center;
+      margin: 0 auto;
+      margin-top: 50px;
+    }
+    
+    /* Styling for tabs */
+    .tab {
+      display: none;
+    }
+    
+    .tab-label {
+      display: inline-block;
+      padding: 10px 20px;
+      background-color: lightblue;
+      cursor: pointer;
+      border-radius: 5px 5px 0 0;
+    }
+    
+    .tab-label.active {
+      background-color: white;
+    }
+    
+    .tab-content {
+      display: none;
+      padding: 20px;
+      background-color: white;
+      border: 1px solid lightblue;
+      border-radius: 0 5px 5px 5px;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+  </style>
+  
+  <script>
+    function switchTab(tabName) {
+      var i, tabContent, tabLabels;
+      
+      tabContent = document.getElementsByClassName("tab-content");
+      for (i = 0; i < tabContent.length; i++) {
+        tabContent[i].style.display = "none";
+      }
+      
+      tabLabels = document.getElementsByClassName("tab-label");
+      for (i = 0; i < tabLabels.length; i++) {
+        tabLabels[i].classList.remove("active");
+      }
+      
+      document.getElementById(tabName).style.display = "block";
+      document.getElementById(tabName + "-label").classList.add("active");
+    }
+  </script>
+</head>
+<body>
+  <div class="ulx-frame">
+    <h1>ULX Frame</h1>
+    
+    <!-- Tab Labels -->
+    <div>
+      <span id="maps-label" class="tab-label active" onclick="switchTab('maps')">Maps</span>
+      <span id="settings-label" class="tab-label" onclick="switchTab('settings')">Settings</span>
+    </div>
+    
+    <!-- Tab Content -->
+    <div id="maps" class="tab-content active">
+      <h2>Maps</h2>
+      <p>This is the content of the Maps tab.</p>
+    </div>
+    
+    <div id="settings" class="tab-content">
+      <h2>Settings</h2>
+      <p>This is the content of the Settings tab.</p>
+    </div>
+  </div>
+</body>
+</html>
